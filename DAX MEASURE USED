@@ -1,0 +1,330 @@
+CORPORATE FINANCE DASHBOARD DAX MEAASURE 
+1. Dim_Date = 
+ ADDCOLUMNS(
+    CALENDAR(
+        DATE(2025,01,01),
+        DATE(2025,12,31)
+    ),
+    "Datekey",VALUE(FORMAT([Date],"YYYYMMDD")),
+    "Year",YEAR([Date]),
+    "Quarter","Q" & FORMAT([Date], "Q" ),
+    "Quarterno", QUARTER([Date]),
+    "Month", FORMAT([Date] ,"MMM"),
+     "Monthno",MONTH([Date])
+)
+
+2.Profitability bridge = 
+DATATABLE(
+    "Stage" , STRING,
+    "Sortorder" , INTEGER,
+    {
+        {"Interest Income", 1},
+        {"Interest Expense",2},
+        {"Fee Income",3},
+        {"Operating Expense",4},
+        {"Provision Expense",5},
+        {"Tax Expense",6},
+        {"Net Profit",7}
+    }
+)
+    Base Measure 
+1.Fee Income = 
+SUM(Fact_Banking_Monthly[FeeIncome])
+2. Interest Expenses = 
+SUM(Fact_Banking_Monthly[InterestExpense])
+3.Interest Income = 
+SUM(Fact_Banking_Monthly[InterestIncome])
+4. Interest Income Benchmark Display = 
+VAR Benchmarkvalue = [Interest Income Benchmark]
+VAR currentvalue = [Interest Income]
+VAR Variancepct = 
+DIVIDE(
+    currentvalue - Benchmarkvalue ,Benchmarkvalue)
+    VAR Arrow =
+    IF(Variancepct >=0,UNICHAR(9650), UNICHAR(9660))
+
+RETURN
+"Benchmark: " 
+& FORMAT(Benchmarkvalue/1000000,"0.0M")
+& " | " & Arrow & " "
+& FORMAT(ABS(Variancepct), "0.0%"
+)
+
+5.Net Profit Benchmark = 
+CALCULATE(
+[Net Profit],
+DATEADD(
+    Dim_Date[Date],-1,MONTH
+)
+)
+6.Operating Expense = 
+SUM(Fact_Banking_Monthly[OperatingExpense])
+
+7.Provision Expenses = 
+SUM(Fact_Banking_Monthly[ProvisionExpense])
+
+8.Tax Expense = 
+ SUM(Fact_Banking_Monthly[TaxExpense])
+
+Charts
+1.30+ DPD Exposure = 
+CALCULATE(
+    [Loan Book],
+    Fact_Banking_Monthly[DaysPastDue] >=30
+)
+2.90+ DPD Exposure = 
+CALCULATE(
+    [Loan Book],
+    Fact_Banking_Monthly[DaysPastDue] >=90
+)
+3.Available Limit = 
+VAR currentlimit =
+CALCULATE(
+SUM(Fact_Banking_Monthly[FacilityLimit]),
+LASTDATE(Dim_Date[Date])
+)
+RETURN
+currentlimit - [Loan Book]
+
+4.Average DPD = 
+AVERAGE(Fact_Banking_Monthly[DaysPastDue])
+5.High Risk Exposure = 
+CALCULATE(
+    [Loan Book],
+    Fact_Banking_Monthly[RiskGrade] = "High"
+)
+6.Net Profit Margin = 
+DIVIDE(
+    [Net Profit],
+    [Operating Income]
+)
+7.Operating Income = 
+[Net Interest Income] + [Fee Income]
+8.Overdue Principal = 
+SUM(Fact_Banking_Monthly[OverduePrincipal])
+9.Performing Loan Book = 
+CALCULATE(
+    [Loan Book],
+    Fact_Banking_Monthly[DaysPastDue] = 0
+)
+10.Provision Amount = 
+SUM(Fact_Banking_Monthly[ProvisionExpense])
+11.Total Risk Exposure = 
+CALCULATE(
+    [Loan Book],
+    Fact_Banking_Monthly[RiskGrade] IN {"Medium", "High"}
+)
+
+color Measure 
+1.Interest Income Color = 
+
+VAR benchmarkvalue = [Interest Income Benchmark]
+VAR currentvalue = [Interest Income]
+VAR Variancepct = DIVIDE(currentvalue - benchmarkvalue,benchmarkvalue )
+
+RETURN 
+IF(Variancepct >=0, "#15803D", "#B91c1c")
+2.Loan Book Color = 
+
+VAR benchmarkvalue = [Loan Book Benchmark]
+VAR currentvalue = [Loan Book]
+VAR Variancepct = DIVIDE(currentvalue - benchmarkvalue,benchmarkvalue )
+
+RETURN 
+IF(Variancepct >=0, "#1580D", "#B91c1c")
+3.Net Profit color = 
+
+VAR benchmarkvalue = [Net Profit Benchmark]
+VAR currentvalue = [Net Profit]
+VAR Variancepct = DIVIDE(currentvalue - benchmarkvalue,benchmarkvalue )
+
+RETURN 
+IF(Variancepct >=0, "#15803D", "#B91c1c")
+4.NII Color = 
+
+VAR benchmarkvalue = [NII Benchmark]
+VAR currentvalue = [Net Interest Income]
+VAR Variancepct = DIVIDE(currentvalue - benchmarkvalue,benchmarkvalue )
+
+RETURN 
+IF(Variancepct >=0, "#15803D", "#B91c1c")
+
+KPIS
+1. Cost Of Funds = 
+DIVIDE(
+    [Interest Expenses],
+    SUM(Fact_Banking_Monthly[AverageFundingBalance])
+) *12
+2. Current days past due = 
+ VAR Lastdatekey = [Last Available datekey]
+
+RETURN
+CALCULATE(
+    MAX(Fact_Banking_Monthly[DaysPastDue]),
+    REMOVEFILTERS(Dim_Date),
+    Fact_Banking_Monthly[DateKey] = Lastdatekey 
+)
+3.Current facility Limit = 
+VAR Lastdatekey = [Last Available datekey]
+
+RETURN
+CALCULATE(
+    SUM(Fact_Banking_Monthly[FacilityLimit]),
+    REMOVEFILTERS(Dim_Date),
+    Fact_Banking_Monthly[DateKey] = Lastdatekey 
+)
+4.Current Overdue principal = 
+VAR Lastdatekey = [Last Available datekey]
+
+RETURN
+CALCULATE(
+    SUM(Fact_Banking_Monthly[OverduePrincipal]),
+    REMOVEFILTERS(Dim_Date),
+    Fact_Banking_Monthly[DateKey] = Lastdatekey 
+)
+5.Current Risk Grade = 
+VAR Lastdatekey = [Last Available datekey]
+
+RETURN
+CALCULATE(
+    SELECTEDVALUE(Fact_Banking_Monthly[RiskGrade]),
+    REMOVEFILTERS(Dim_Date),
+    Fact_Banking_Monthly[DateKey] = Lastdatekey 
+)
+6.High Risk exposure % = 
+COALESCE(
+    DIVIDE(
+    [High Risk Exposure],
+    [Loan Book]
+),0
+)
+7.Interest Income Benchmark = 
+CALCULATE(
+[Interest Income],
+DATEADD(
+    Dim_Date[Date],-1,MONTH
+)
+)
+8.Loan  Book  1 = 
+VAR Lastdatekey = [Last Available datekey]
+
+RETURN
+CALCULATE(
+    SUM(Fact_Banking_Monthly[ClosingPrincipal]),
+    REMOVEFILTERS(Dim_Date),
+    Fact_Banking_Monthly[DateKey] = Lastdatekey 
+)
+9.Loan Book = 
+VAR SelectedEnddate =
+MAX(Dim_Date[Date])
+
+VAR Lastavailabledatekey =
+CALCULATE(
+    MAX(Fact_Banking_Monthly[DateKey]),
+    REMOVEFILTERS(Dim_Date),
+     Fact_Banking_Monthly[DateKey]
+     <= VALUE(FORMAT(SelectedEnddate, "YYYYMMDD"))
+)
+RETURN
+CALCULATE(
+    SUM(Fact_Banking_Monthly[ClosingPrincipal]),
+    REMOVEFILTERS(Dim_Date),
+    Fact_Banking_Monthly[DateKey] = Lastavailabledatekey
+)
+10.Loan Book Benchmark = 
+VAR currentenddate = 
+MAX(Dim_Date[Date])
+
+VAR Previousdate = 
+EOMONTH(currentenddate,-1)
+
+RETURN 
+CALCULATE([Loan Book],
+Dim_Date[Date] = Previousdate 
+)
+11.Loan Book Benchmark display = 
+VAR Benchmarkvalue = [Loan Book Benchmark] 
+VAR currentvalue = [Loan Book]
+VAR Variancepct = 
+DIVIDE(
+    currentvalue - Benchmarkvalue ,Benchmarkvalue)
+    VAR Arrow =
+    IF(Variancepct >=0,UNICHAR(9650), UNICHAR(9660))
+
+RETURN
+"Benchmark: " 
+& FORMAT(Benchmarkvalue/1000000000,"0.0B")
+& " | " & Arrow & " "
+& FORMAT(ABS(Variancepct), "0.0%"
+)
+12. Net Interest Income = 
+[Interest Income] - [Interest Expenses]
+13.Net Interest Margin = 
+DIVIDE(
+    [Net Interest Income],
+    SUM(Fact_Banking_Monthly[AverageEarningAssets])
+) *12
+14. Net Profit = 
+ [Net Interest Income] + 
+ [Fee Income] 
+ - [Operating Expense]
+ - [Provision Expenses]
+ - [Tax Expense]
+
+15.Net Profit Benchmark Display = 
+VAR Benchmarkvalue = [Net Profit Benchmark] 
+VAR currentvalue = [Net Profit]
+VAR Variancepct = 
+DIVIDE(
+    currentvalue - Benchmarkvalue ,Benchmarkvalue)
+    VAR Arrow =
+    IF(Variancepct >=0,UNICHAR(9650), UNICHAR(9660))
+
+RETURN
+"Benchmark: " 
+& FORMAT(Benchmarkvalue/10000000,"0.0M")
+& " | " & Arrow & " "
+& FORMAT(ABS(Variancepct), "0.0%"
+)
+
+16.NII Benchmark = 
+CALCULATE(
+[Net Interest Income],
+DATEADD(
+    Dim_Date[Date],-1,MONTH
+)
+)
+17.NII Benchmark Display = 
+VAR Benchmarkvalue = [NII Benchmark] 
+VAR currentvalue = [Net Interest Income]
+VAR Variancepct = 
+DIVIDE(
+    currentvalue - Benchmarkvalue ,Benchmarkvalue)
+    VAR Arrow =
+    IF(Variancepct >=0,UNICHAR(9650), UNICHAR(9660))
+
+RETURN
+"Benchmark: " 
+& FORMAT(Benchmarkvalue/10000000,"0.0M")
+& " | " & Arrow & " "
+& FORMAT(ABS(Variancepct), "0.0%"
+)
+18.Selected Client = 
+SELECTEDVALUE(Dim_Client[ClientName], "Select a Client")
+
+19.Yields On Advance = 
+DIVIDE(
+    [Interest Income],
+    SUM(Fact_Banking_Monthly[AverageEarningAssets])
+) *12
+
+20.Last Available datekey = 
+VAR Selectedenddate =
+MAX(Dim_Date[Date])
+
+RETURN
+CALCULATE(
+   MAX(Fact_Banking_Monthly[DateKey]),
+    REMOVEFILTERS(Dim_Date),
+    Dim_Date[Date] <= Selectedenddate
+    )
